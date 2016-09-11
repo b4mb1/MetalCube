@@ -17,7 +17,8 @@ class BufferPool: NSObject {
     var avaliableResourcesSemaphore:dispatch_semaphore_t
 
     
-    init(device:MTLDevice, inflightBuffersCount: Int, sizeOfUniformsBuffer: Int) {
+    init(device:MTLDevice, inflightBuffersCount: Int) {
+        let sizeOfUniformsBuffer = sizeof(Float) * (2 * Matrix4.numberOfElements()) + Light.size()
         avaliableResourcesSemaphore = dispatch_semaphore_create(inflightBuffersCount)
         self.inflightBuffersCount = inflightBuffersCount
         uniformsBuffers = [MTLBuffer]()
@@ -28,7 +29,7 @@ class BufferPool: NSObject {
         }
     }
     
-    func nextUniformsBuffer(projectionMatrix: Matrix4, modelViewMatrix: Matrix4) -> MTLBuffer {
+    func nextUniformsBuffer(projectionMatrix: Matrix4, modelViewMatrix: Matrix4, light: Light) -> MTLBuffer {
         
         let buffer = uniformsBuffers[avaliableBufferIndex]
         
@@ -36,6 +37,7 @@ class BufferPool: NSObject {
         
         memcpy(bufferPointer, modelViewMatrix.raw(), sizeof(Float)*Matrix4.numberOfElements())
         memcpy(bufferPointer + sizeof(Float)*Matrix4.numberOfElements(), projectionMatrix.raw(), sizeof(Float)*Matrix4.numberOfElements())
+        memcpy(bufferPointer + 2*sizeof(Float)*Matrix4.numberOfElements(), light.raw(), Light.size())
         
         avaliableBufferIndex += 1
         if avaliableBufferIndex == inflightBuffersCount{

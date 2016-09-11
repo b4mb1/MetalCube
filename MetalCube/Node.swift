@@ -17,11 +17,12 @@ class Node {
     var vertexCount: Int
     var vertexBuffer: MTLBuffer
     var uniformBuffer: MTLBuffer?
-    var bufferProvider: BufferPool
+    var bufferPool: BufferPool
     var device: MTLDevice
     
     var texture: MTLTexture
     lazy var samplerState: MTLSamplerState? = Node.defaultSampler(self.device)
+    let light = Light(color: (1.0,1.0,1.0), ambientIntensity: 0.1, direction: (1.0, 1.0, 1.0), diffuseIntensity: 0.8, shininess: 2, specularIntensity: 1)
     
     var positionX:Float = 0.0
     var positionY:Float = 0.0
@@ -47,12 +48,12 @@ class Node {
         self.device = device
         self.vertexCount = vertices.count
         self.texture = texture
-        self.bufferProvider = BufferPool(device: device, inflightBuffersCount: 3, sizeOfUniformsBuffer: sizeof(Float) * Matrix4.numberOfElements() * 2)
+        self.bufferPool = BufferPool(device: device, inflightBuffersCount: 3)
     }
     
     
     func render(commandQueue: MTLCommandQueue, pipelineState: MTLRenderPipelineState, drawable: CAMetalDrawable, parentModelViewMatrix: Matrix4, projectionMatrix: Matrix4, clearColor: MTLClearColor?){
-        dispatch_semaphore_wait(bufferProvider.avaliableResourcesSemaphore, DISPATCH_TIME_FOREVER)
+        dispatch_semaphore_wait(bufferPool.avaliableResourcesSemaphore, DISPATCH_TIME_FOREVER)
 
         let renderPassDescriptor = MTLRenderPassDescriptor()
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture
@@ -62,7 +63,7 @@ class Node {
         let commandBuffer = commandQueue.commandBuffer()
         
         commandBuffer.addCompletedHandler { (commandBuffer) -> Void in
-            dispatch_semaphore_signal(self.bufferProvider.avaliableResourcesSemaphore)
+            dispatch_semaphore_signal(self.bufferPool.avaliableResourcesSemaphore)
         }
         
         let renderEncoder = commandBuffer.renderCommandEncoderWithDescriptor(renderPassDescriptor)
@@ -77,8 +78,9 @@ class Node {
         
         let nodeModelMatrix = self.modelMatrix()
         nodeModelMatrix.multiplyLeft(parentModelViewMatrix)
-        uniformBuffer = bufferProvider.nextUniformsBuffer(projectionMatrix, modelViewMatrix: nodeModelMatrix)
+        uniformBuffer = bufferPool.nextUniformsBuffer(projectionMatrix, modelViewMatrix: nodeModelMatrix, light: light)
         renderEncoder.setVertexBuffer(self.uniformBuffer, offset: 0, atIndex: 1)
+        renderEncoder.setFragmentBuffer(uniformBuffer, offset: 0, atIndex: 1)
         renderEncoder.drawPrimitives(.Triangle, vertexStart: 0, vertexCount: vertexCount, instanceCount: vertexCount/3)
         renderEncoder.endEncoding()
         
