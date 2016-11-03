@@ -2,4 +2,4 @@
 
 3D cube with fine texture and lighting. Created with Metal framework.
 
-![Alt text](cube-optimzed.gif) <br />
+![Alt text](cube-optimized.gif) <br />
